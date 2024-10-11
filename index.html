@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Catcher - A Glowing Catching Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        @keyframes particle {
+            0% {
+                opacity: 1;
+                transform: scale(1) rotate(var(--rotation)) translateY(-10px);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(0) rotate(var(--rotation)) translateY(-50px);
+            }
+        }
+        
+        .glow {
+            filter: drop-shadow(0 0 10px rgba(255, 220, 100, 0.8));
+        }
+        
+        .bloom {
+            animation: bloom 2s infinite;
+        }
+        
+        @keyframes bloom {
+            0%, 100% { filter: drop-shadow(0 0 15px rgba(255, 220, 100, 0.8)); }
+            50% { filter: drop-shadow(0 0 25px rgba(255, 220, 100, 1)); }
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .game-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const Particles = ({ x, y }) => {
+            return (
+                <div className="absolute" style={{ left: x, top: y }}>
+                    {[...Array(8)].map((_, i) => (
+                        <div
+                            key={i}
+                            className="absolute w-2 h-2 rounded-full bg-yellow-300 animate-particle"
+                            style={{
+                                animation: 'particle 0.5s ease-out forwards',
+                                transform: `rotate(${i * 45}deg) translateY(-10px)`,
+                            }}
+                        />
+                    ))}
+                </div>
+            );
+        };
+
+        function Game() {
+            const [score, setScore] = React.useState(0);
+            const [gameOver, setGameOver] = React.useState(false);
+            const [basketPosition, setBasketPosition] = React.useState(50);
+            const [fallingItems, setFallingItems] = React.useState([]);
+            const [gameStarted, setGameStarted] = React.useState(false);
+            const [particles, setParticles] = React.useState([]);
+
+            const gameWidth = 400;
+            const gameHeight = 500;
+            const basketWidth = 60;
+            const itemSize = 20;
+
+            const createCatchEffect = (x, y) => {
+                const particleId = Date.now();
+                setParticles(prev => [...prev, { id: particleId, x, y }]);
+                setTimeout(() => {
+                    setParticles(prev => prev.filter(p => p.id !== particleId));
+                }, 500);
+            };
+
+            React.useEffect(() => {
+                if (!gameStarted || gameOver) return;
+
+                const gameLoop = setInterval(() => {
+                    setFallingItems(prevItems => {
+                        const newItems = prevItems.map(item => ({
+                            ...item,
+                            y: item.y + 5
+                        }));
+
+                        newItems.forEach(item => {
+                            if (item.y >= gameHeight - 40) {
+                                if (Math.abs(item.x - basketPosition) < basketWidth / 2) {
+                                    setScore(prev => prev + 1);
+                                    createCatchEffect(item.x, item.y);
+                                } else {
+                                    setGameOver(true);
+                                }
+                            }
+                        });
+
+                        return newItems.filter(item => item.y < gameHeight);
+                    });
+                }, 50);
+
+                const spawnInterval = setInterval(() => {
+                    if (Math.random() < 0.1) {
+                        setFallingItems(prev => [...prev, {
+                            id: Date.now(),
+                            x: Math.random() * (gameWidth - itemSize),
+                            y: 0
+                        }]);
+                    }
+                }, 500);
+
+                return () => {
+                    clearInterval(gameLoop);
+                    clearInterval(spawnInterval);
+                };
+            }, [gameStarted, gameOver, basketPosition]);
+
+            const handleMouseMove = (e) => {
+                if (gameOver) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                setBasketPosition(Math.max(basketWidth/2, Math.min(x, gameWidth - basketWidth/2)));
+            };
+
+            return (
+                <div className="min-h-screen py-8 px-4">
+                    <div className="max-w-2xl mx-auto text-center game-container p-8">
+                        <h1 className="text-4xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
+                            Cosmic Catcher
+                        </h1>
+                        
+                        <div className="mb-8">
+                            <p className="text-lg opacity-80 mb-4">
+                                Catch the falling stars and see how many you can collect!
+                            </p>
+                            <p className="text-sm opacity-60">
+                                Move your mouse to control the basket
+                            </p>
+                        </div>
+
+                        <div className="text-2xl font-bold mb-4">Score: {score}</div>
+                        
+                        {!gameStarted && !gameOver && (
+                            <button 
+                                onClick={() => setGameStarted(true)}
+                                className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 bloom mb-4"
+                            >
+                                Start Game
+                            </button>
+                        )}
+
+                        {gameOver && (
+                            <div className="text-center mb-4">
+                                <div className="text-xl text-red-500 mb-2 glow">Game Over!</div>
+                                <button 
+                                    onClick={() => {
+                                        setGameOver(false);
+                                        setScore(0);
+                                        setFallingItems([]);
+                                        setGameStarted(true);
+                                    }}
+                                    className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 bloom"
+                                >
+                                    Play Again
+                                </button>
+                            </div>
+                        )}
+
+                        <div 
+                            className="relative bg-gray-900 overflow-hidden rounded-lg mx-auto"
+                            style={{ width: gameWidth, height: gameHeight }}
+                            onMouseMove={handleMouseMove}
+                        >
+                            {fallingItems.map(item => (
+                                <div
+                                    key={item.id}
+                                    className="absolute rounded-full bloom"
+                                    style={{
+                                        width: itemSize,
+                                        height: itemSize,
+                                        left: item.x,
+                                        top: item.y,
+                                        background: 'radial-gradient(circle at center, #ffeb3b, #ff9800)',
+                                    }}
+                                />
+                            ))}
+
+                            {particles.map(particle => (
+                                <Particles key={particle.id} x={particle.x} y={particle.y} />
+                            ))}
+
+                            <div
+                                className="absolute bottom-0 glow"
+                                style={{
+                                    width: basketWidth,
+                                    height: 40,
+                                    left: basketPosition - basketWidth/2,
+                                    background: 'linear-gradient(to bottom, #c6a700, #8B4513)',
+                                    borderRadius: '0 0 8px 8px'
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<Game />, document.getElementById('root'));
+    </script>
+</body>
+</html>
